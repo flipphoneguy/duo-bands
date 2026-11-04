@@ -13,20 +13,21 @@ Each phone ships in regional variants with the same radio hardware but firmware 
 
 The M5 build also keeps the EU set's 3G, 2G and TD-SCDMA; US 3G B4 is the only US radio not merged.
 
-A release carries, per phone: `md1img_a.duo.signed.bin` (the modem image, re-signed), `md1img_a.duo.bin` (the same image unsigned), `nvdata.duo.img` and `nvram.duo.bin`.
+A release carries three files per phone, prefixed `f21-` or `m5-`: `md1img_a.duo.signed.bin` (the modem image, re-signed), `nvdata.duo.img` and `nvram.duo.bin`.
 
 ## Flashing
 
 From fastboot, on the active slot. Back up the stock `md1img`, `nvdata` and `nvram` first.
 
+Flashing `nvdata` and `nvram` replaces the phone's IMEI, Bluetooth MAC and Wi-Fi MAC (and its RF calibration) with the ones from the firmware set the build came from. Write them down or back them up with [mtk-imei-switcheroo-app](https://github.com/flipphoneguy/mtk-imei-switcheroo-app) before flashing, then restore them with the same app afterwards.
+
 ```sh
-fastboot flash md1img_a md1img_a.duo.signed.bin
-fastboot flash nvdata nvdata.duo.img
-fastboot flash nvram nvram.duo.bin
+# F21 shown; the M5 is the same with the m5- files
+fastboot flash md1img_a f21-md1img_a.duo.signed.bin
+fastboot flash nvdata f21-nvdata.duo.img
+fastboot flash nvram f21-nvram.duo.bin
 fastboot reboot
 ```
-
-Flashing `nvdata` replaces the IMEI and calibration with the build's.
 
 ## How it works
 
