@@ -1,0 +1,5 @@
+# Regenerable / device-specific; keep local only.
+/tmp/
+/duobands/
+__pycache__/
+*.pyc
