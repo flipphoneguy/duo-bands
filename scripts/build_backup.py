@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 # Rebuild the NVRAM backup (AllFile/AllMap in nvdata, and the nvram partition) for a duo build:
 # copy the patched live files into AllFile, recompute the AllMap checksum, mirror both into nvram.
-import struct, re, sys, subprocess, json, os
+import struct, re, sys, json, os
 _R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_R, 'scripts', 'lib'))
 from binregion import allfile_checksum
+from ext4blocks import write_file
 
 dev = sys.argv[1]                            # f21 | m5
-base = os.path.join(_R, 'tmp', dev, 'eu')
+base = os.path.join(_R, 'tmp', dev, {'f21': 'us', 'm5': 'eu'}[dev])   # the set each duo is built on
 duo = os.path.join(_R, 'tmp', f'{dev}_duo')
 am = bytearray(open(f'{base}/nvdata/AllMap', 'rb').read())
 af = bytearray(open(f'{base}/nvdata/AllFile', 'rb').read())
@@ -41,16 +42,8 @@ struct.pack_into('<I', am, 0, new)
 log.append(f'AllMap checksum {old:#010x} -> {new:#010x}')
 
 # nvdata image: overwrite AllFile and AllMap data blocks in place (sizes unchanged)
-img = f'{duo}/nvdata.duo.img'
-m = re.search(r'Block size:\s+(\d+)', subprocess.run(['debugfs', '-R', 'stats', img], capture_output=True, text=True).stdout)
-assert m
-bs = int(m.group(1))
-with open(img, 'r+b') as fh:
-    for name, data in (('AllFile', af), ('AllMap', am)):
-        blocks = [int(x) for x in subprocess.run(['debugfs', '-R', f'blocks /{name}', img], capture_output=True, text=True).stdout.split()]
-        assert len(blocks) == (len(data) + bs - 1) // bs, name
-        for i, b in enumerate(blocks):
-            fh.seek(b * bs); fh.write(data[i * bs:(i + 1) * bs])
+for name, data in (('AllFile', af), ('AllMap', am)):
+    write_file(f'{duo}/nvdata.duo.img', f'/{name}', bytes(data))
 
 # nvram partition: header (sizes) + AllMap at 12 + AllFile at 0x20000
 nv = bytearray(open(f'{base}/nvram.bin', 'rb').read())

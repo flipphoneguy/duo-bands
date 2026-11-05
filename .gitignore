@@ -3,3 +3,12 @@
 /duobands/
 __pycache__/
 *.pyc
+# app build output and the generated image bundle (scripts/build_app_assets.py)
+/app/build/
+/app/libs/
+/app/*.apk
+/app/*.idsig
+/app/assets/f21duo.tar.xz
+/app/assets/layout.json
+/app/assets/AllFile.bin
+/app/assets/AllMap.bin

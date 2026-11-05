@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">F21 Duo Bands</string>
+    <string name="about">Installs modem firmware with both the EU and the US LTE bands on the Qin F21 Pro (before v3), keeps this phone\'s IMEI and addresses, and sets up VoLTE for Israeli networks. Needs root.</string>
+    <string name="install">Install</string>
+    <string name="log">Log</string>
+</resources>

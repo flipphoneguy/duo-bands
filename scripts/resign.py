@@ -14,6 +14,9 @@ dev = sys.argv[1]                       # f21 | m5
 _R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = os.path.join(_R, 'tmp')
 duo = os.path.join(BASE, f'{dev}_duo')
+SET = {'f21': 'us', 'm5': 'eu'}[dev]    # the set each duo is built on
+MD1 = f'{BASE}/{dev}/{SET}/md1'
+C1 = 'cert1md' if os.path.exists(f'{MD1}/cert1md') else 'cert1'   # md1rom's first cert (US F21 names it cert1)
 kaios = serialization.load_pem_private_key(open(os.path.join(_R, 'keystore', 'kaios_da_privkey.pem'), 'rb').read(), None)
 
 # OID 2.16.886.2454.2.1 (the md1rom-hash field inside cert2)
@@ -47,9 +50,10 @@ while True:
     if imod[0] & 0x80: break            # top bit set -> encodes without an extra leading byte
 
 # ---------- cert1md: swap key1's modulus for the intermediate's, re-sign with kaios ----------
-c1 = bytearray(open(f'{duo}/orig_cert1md', 'rb').read()) if False else bytearray(open(f'{BASE}/{dev}/eu/md1/cert1md', 'rb').read())
+c1 = bytearray(open(f'{MD1}/{C1}', 'rb').read())
 mpos = [m.end() for m in re.finditer(re.escape(MODPAT), c1)]
-assert len(mpos) == 2, f'expected 2 keys in cert1md, found {len(mpos)}'
+assert len(mpos) == 2, f'expected 2 keys in {C1}, found {len(mpos)}'
+c1[mpos[0]:mpos[0] + 256] = kaios.public_key().public_numbers().n.to_bytes(256, 'big')   # root slot = kaios (already so on EU, a key we don't hold on US)
 key1_off = mpos[1]                       # second embedded key = intermediate slot
 c1[key1_off:key1_off + 256] = imod
 tbs, t0, t1, so, sl = split_cert(bytes(c1))
@@ -59,7 +63,7 @@ cert1md_new = bytes(c1)
 assert pss_ok(kaios.public_key(), cert1md_new[so:so + 256], cert1md_new[t0:t1]), 'cert1md re-sign failed'
 
 # ---------- cert2 (first copy = md1rom's): set duo md1rom hash, re-sign with intermediate ----------
-c2 = bytearray(open(f'{BASE}/{dev}/eu/md1/cert2', 'rb').read())
+c2 = bytearray(open(f'{MD1}/cert2', 'rb').read())
 rom = open(f'{duo}/md1rom.duo', 'rb').read()
 rom_pad = rom + b'\0' * ((-len(rom)) % 16)
 newhash = hashlib.sha256(rom_pad).digest()
@@ -89,8 +93,8 @@ print(f'[{dev}] cert2 holds sha256(duo md1rom padded): {ok_hash}')
 assert all((ok_root, ok_embed, ok_leaf, ok_hash))
 
 # sizes must be identical so md1img layout is untouched
-assert len(cert1md_new) == len(open(f'{BASE}/{dev}/eu/md1/cert1md', 'rb').read())
-assert len(cert2_new) == len(open(f'{BASE}/{dev}/eu/md1/cert2', 'rb').read())
+assert len(cert1md_new) == len(open(f'{MD1}/{C1}', 'rb').read())
+assert len(cert2_new) == len(open(f'{MD1}/cert2', 'rb').read())
 
 # ---------- splice into the duo md1img at the original offsets ----------
 img = bytearray(open(f'{duo}/md1img_a.duo.bin', 'rb').read())
@@ -103,9 +107,9 @@ def part_offsets(d):
         parts.append((name, off + hdr, size)); off = (off + hdr + size + 15) & ~15
     return parts
 parts = part_offsets(img)
-c1_off = next(o for n, o, s in parts if n == 'cert1md')
+c1_off = next(o for n, o, s in parts if n == C1)          # first one = md1rom's
 c2_off = next(o for n, o, s in parts if n == 'cert2')      # first cert2 = md1rom's
-assert img[c1_off:c1_off + len(cert1md_new)] == open(f'{BASE}/{dev}/eu/md1/cert1md', 'rb').read()
+assert img[c1_off:c1_off + len(cert1md_new)] == open(f'{MD1}/{C1}', 'rb').read()
 img[c1_off:c1_off + len(cert1md_new)] = cert1md_new
 img[c2_off:c2_off + len(cert2_new)] = cert2_new
 open(f'{duo}/md1img_a.duo.signed.bin', 'wb').write(img)

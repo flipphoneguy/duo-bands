@@ -10,6 +10,19 @@ class Dict:
         for m in re.finditer(r'<NVRAM_LID name="([^"]+)" id="(\d+)" record_count="\d+" version="\d+" type_name="([^"]*)"',t):
             s.lids[int(m[2])]=(m[1],m[3])
         s.td={m[1]:m[2] for m in re.finditer(r'<Typedef name="([^"]+)" defined_type_name="([^"]+)"',t)}
+    def field(s,tname,path,idx=None):
+        # (offset, size) of a dotted field path inside a struct; idx picks one element of an array field
+        off=0; t=tname; f=None
+        for part in path.split('.'):
+            while t not in s.structs and t in s.td: t=s.td[t]
+            f=next(x for x in s.structs[t][1] if x['name']==part)
+            off+=int(f['offset']); t=f.get('type_name','')
+        size=int(f['size'])
+        if idx is None: return off,size
+        n=1
+        for x in f.get('array_sizes','').split(','):
+            if x: n*=int(x)
+        return off+idx*(size//n),size//n
     def flat(s,tname,b,pre=''):
         out=[]
         while tname not in s.structs and tname in getattr(s,'td',{}): tname=s.td[tname]

@@ -10,6 +10,8 @@ dev = sys.argv[1]
 _R = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BASE = os.path.join(_R, 'tmp')
 duo = os.path.join(BASE, f'{dev}_duo')
+SET = {'f21': 'us', 'm5': 'eu'}[dev]
+C1 = 'cert1md' if os.path.exists(f'{BASE}/{dev}/{SET}/md1/cert1md') else 'cert1'
 kaios_pub = serialization.load_pem_private_key(open(os.path.join(_R, 'keystore', 'kaios_da_privkey.pem'), 'rb').read(), None).public_key()
 MODPAT = b'\x02\x82\x01\x01\x00'; OIDH = bytes.fromhex('060760867693160201')
 ok = True
@@ -40,12 +42,12 @@ duoimg = open(f'{duo}/md1img_a.duo.bin', 'rb').read()
 ck(len(sgn) == len(duoimg), 'signed md1img same size as unsigned duo')
 
 allp = parts(sgn)
-c1o, c1s = next((o, s) for n, o, s in allp if n == 'cert1md')
+c1o, c1s = next((o, s) for n, o, s in allp if n == C1)
 # md1rom's cert2 = the first cert2 in the file (adjacent to cert1md)
 c2o, c2s = next((o, s) for n, o, s in allp if n == 'cert2')
 diff = [i for i in range(len(sgn)) if sgn[i] != duoimg[i]]
 inside = lambda i: (c1o <= i < c1o + c1s) or (c2o <= i < c2o + c2s)
-ck(all(inside(i) for i in diff), f'all {len(diff)} changed bytes are within cert1md or the first cert2')
+ck(all(inside(i) for i in diff), f'all {len(diff)} changed bytes are within {C1} or the first cert2')
 
 # md1rom in the signed image is exactly the duo md1rom
 romo, roms = next((o, s) for n, o, s in allp if n == 'md1rom')
@@ -58,9 +60,9 @@ tbs1, sig1 = split(c1); tbs2, sig2 = split(c2)
 k0 = int.from_bytes(c1[re.search(re.escape(MODPAT), c1).end():][:256], 'big')
 mpos = [m.end() for m in re.finditer(re.escape(MODPAT), c1)]
 inter_mod = int.from_bytes(c1[mpos[1]:mpos[1] + 256], 'big')
-ck(k0 == kaios_pub.public_numbers().n, 'cert1md key0 == kaios root')
-ck(pss_ok(kaios_pub.public_numbers().n, sig1, tbs1), 'kaios root signature over cert1md is valid')
-ck(pss_ok(inter_mod, sig2, tbs2), 'intermediate (from cert1md) signature over cert2 is valid')
+ck(k0 == kaios_pub.public_numbers().n, f'{C1} key0 == kaios root')
+ck(pss_ok(kaios_pub.public_numbers().n, sig1, tbs1), f'kaios root signature over {C1} is valid')
+ck(pss_ok(inter_mod, sig2, tbs2), f'intermediate (from {C1}) signature over cert2 is valid')
 hi = c2.find(OIDH) + len(OIDH) + 3
 ck(c2[hi:hi + 32] == hashlib.sha256(rom + b'\0' * ((-len(rom)) % 16)).digest(), 'cert2 img-hash == sha256(md1rom in image, padded)')
 
@@ -70,8 +72,8 @@ names = [n for n, o, s in allp]
 di = names.index('md1dsp')
 dsp_c1 = next((o, s) for n, o, s in allp[di:] if n == 'cert1')
 dsp_c2 = next((o, s) for n, o, s in allp[di:] if n == 'cert2')
-eu = open(f'{BASE}/{dev}/eu/md1img_a.bin', 'rb').read()
-ck(sgn[dsp_c1[0]:dsp_c1[0] + dsp_c1[1]] == eu[dsp_c1[0]:dsp_c1[0] + dsp_c1[1]], "md1dsp's cert1 untouched (== EU)")
+eu = open(f'{BASE}/{dev}/{SET}/md1img_a.bin', 'rb').read()
+ck(sgn[dsp_c1[0]:dsp_c1[0] + dsp_c1[1]] == eu[dsp_c1[0]:dsp_c1[0] + dsp_c1[1]], f"md1dsp's cert1 untouched (== {SET.upper()})")
 dc1 = sgn[dsp_c1[0]:dsp_c1[0] + dsp_c1[1]]; dc2 = sgn[dsp_c2[0]:dsp_c2[0] + dsp_c2[1]]
 dt1, ds1 = split(dc1); dt2, ds2 = split(dc2)
 dk0 = int.from_bytes(dc1[re.search(re.escape(MODPAT), dc1).end():][:256], 'big')
